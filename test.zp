@@ -1,0 +1,11 @@
+(load "html/html")
+(define html:build (import "html:build"))
+
+(html:build
+  (list "html"
+    (list "body"
+      #{"style" "color: purple"
+        "onclick" "foo()"}
+      (list
+        (list "h1" "title")
+        (list "span" "i am some text!")))))

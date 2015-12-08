@@ -1,0 +1,32 @@
+(module "html"
+  (exports
+    (list "doctype" doctype)
+    (list "build" build)
+    (list "parse" parse))
+
+  (doctype (lambda x
+    (if (null? x)
+      "<!DOCTYPE html>"
+      (++ "<!DOCTYPE " (car x) ">"))))
+
+  (build (lambda (m)
+    (define (_build l)
+      (define (destructure hash)
+        (hash:keys-reduce (lambda (acc x) (++ acc " " x "=\"" (hash x) "\"")) "" hash))
+      (let* ((tag (car l))
+             (len (length l))
+             (attrs (if (> len 1) (if (hash-map? (cadr l)) (destructure (cadr l)) "") ""))
+             (todo (if (truthy? attrs) (if (> len 2) (caddr l) '()) (if (> len 1) (cadr l) ""))))
+        (++ "<" tag attrs ">" (build todo) "</" tag ">")))
+    (cond
+      ((string? m) m)
+      ((number? m) (number->string m))
+      ((list? m)
+        (cond
+          ((null? m) "")
+          ((string? (car m)) (_build m))
+          ((list? (car m)) (reduce (lambda (acc x) (++ acc (build x))) "" m))
+          (else :no)))
+      (else :no))))
+    
+  (parse (lambda (str) :no)))
