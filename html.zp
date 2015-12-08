@@ -2,6 +2,7 @@
   (exports
     (list "doctype" doctype)
     (list "build" build)
+    (list "with-skeleton" with-skeleton)
     (list "parse" parse))
 
   (doctype (lambda x
@@ -28,5 +29,14 @@
           ((list? (car m)) (reduce (lambda (acc x) (++ acc (build x))) "" m))
           (else :no)))
       (else :no))))
-    
+
+    (with-skeleton (lambda contents
+      (if (null? contents)
+        (list "html" ((list "head") (list "body")))
+        (let ((hash (car contents)))
+          (list "html"
+            (list
+              (list "head" (if (truthy? (hash "head")) (hash "head") ""))
+              (list "body" (if (truthy? (hash "body")) (hash "body") ""))))))))
+
   (parse (lambda (str) :no)))

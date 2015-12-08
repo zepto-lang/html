@@ -1,11 +1,29 @@
 (load "html/html")
+(load "minitest/minitest")
 (define html:build (import "html:build"))
+(define html:with-skeleton (import "html:with-skeleton"))
+(define minitest:assert-equal (import "minitest:assert-equal"))
+((import "minitest:colorize") #t)
+((import "minitest:verbose") #t)
 
-(html:build
-  (list "html"
-    (list "body"
-      #{"style" "color: purple"
-        "onclick" "foo()"}
-      (list
-        (list "h1" "title")
-        (list "span" "i am some text!")))))
+(minitest:assert-equal
+  (html:build
+    (list "html"
+      (list "body"
+        #{"style" "color: purple"
+          "onclick" "foo()"}
+        (list
+          (list "h1" "title")
+          (list "span" "i am some text!")))))
+  "<html><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>"
+  "build html")
+
+(minitest:assert-equal
+  (html:build
+    (html:with-skeleton
+      (make-hash "head" (list "script" #{"type" "text/javascript"} "alert(\"yay\");")
+                 "body" (list "p" "notifications are annoying"))))
+  "<html><head><script type=\"text/javascript\">alert(\"yay\");</script></head><body><p>notifications are annoying</p></body></html>"
+  "build html with skeleton")
+
+((import "minitest:results"))
