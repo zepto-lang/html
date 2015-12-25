@@ -1,12 +1,14 @@
 (load "html/html")
 (load "minitest/minitest")
 (define html:build (import "html:build"))
+(define html:parse (import "html:parse"))
 (define html:with-skeleton (import "html:with-skeleton"))
 (define minitest:assert-equal (import "minitest:assert-equal"))
 ((import "minitest:colorize") #t)
 ((import "minitest:verbose") #t)
 
 (minitest:assert-equal
+  "<html><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>"
   (html:build
     (list "html"
       (list "body"
@@ -15,15 +17,39 @@
         (list
           (list "h1" "title")
           (list "span" "i am some text!")))))
-  "<html><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>"
   "build html")
 
 (minitest:assert-equal
+  "<html><head><script type=\"text/javascript\">alert(\"yay\");</script></head><body><p>notifications are annoying</p></body></html>"
   (html:build
     (html:with-skeleton
       (make-hash "head" (list "script" #{"type" "text/javascript"} "alert(\"yay\");")
                  "body" (list "p" "notifications are annoying"))))
-  "<html><head><script type=\"text/javascript\">alert(\"yay\");</script></head><body><p>notifications are annoying</p></body></html>"
   "build html with skeleton")
+
+(minitest:assert-equal
+  :err-unexpected-char
+  (html:parse "invalid")
+  "test that invalid html is not parsed (dangling text)")
+
+(minitest:assert-equal
+  :err-unclosed-bracket
+  (html:parse "<invalid")
+  "test that invalid html is not parsed (mismatched brackets)")
+
+(minitest:assert-equal
+  []
+  (html:parse "")
+  "test that empty html yields empty list")
+
+(minitest:assert-equal
+  (list "br" #{})
+  (html:parse "<br/>")
+  "test that self-closing tags are parsed correctly")
+
+(minitest:assert-equal
+  ["br" #{"style" "padding-bottom: 1em"}]
+  (html:parse "<br style=\"padding-bottom: 1em\"/>")
+  "test that the attributes of self-closing tags are parsed correctly")
 
 ((import "minitest:results"))

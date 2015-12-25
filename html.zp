@@ -10,6 +10,63 @@
       "<!DOCTYPE html>"
       (++ "<!DOCTYPE " (car x) ">"))))
 
+  (parse (lambda (str)
+    (define (split-attrs tag-contents parsed)
+      (if (string:empty? tag-contents)
+        parsed
+        (let ((quoted (string:find tag-contents #\"))
+              (whitespace (string:find tag-contents #\space)))
+        (if (< quoted whitespace)
+          (let ((sep (add1 
+                  (+
+                    (string:find
+                      (substring tag-contents (add1 quoted) (length tag-contents)) #\") quoted))))
+            (if (eq? sep 0)
+              :err-quote-mismatch
+              (split-attrs (substring tag-contents (add1 sep) (length tag-contents))
+                           (++ parsed (substring tag-contents 0 (add1 sep))))))
+          (if (eq? whitespace -1)
+            (++ parsed tag-contents)
+            (if (eq? whitespace 0)
+              (split-attrs (substring tag-contents (add1 whitespace) (length tag-contents))
+                           parsed)
+              (split-attrs (substring tag-contents (add1 whitespace) (length tag-contents))
+                           (++ parsed (substring tag-contents 0 whitespace)))))))))
+    (define (parse-self-closing tag)
+      (let* ((attrs (split-attrs tag []))
+             (name (car attrs))
+             (pairs
+              (make-hash
+                (map
+                  (lambda (x) 
+                    (let* ((split (string:split x #\=))
+                           (val (cadr split)))
+                      (list (car split) (substring val 1 (sub1 (length val))))))
+                  (cdr attrs)))))
+      (list name pairs)))
+    (define (internal str pos acc)
+      (if (string:empty? str)
+        acc
+        (let ((strip (string:head str)))
+          (if (eq? strip #\<)
+            (let ((closing (string:find str #\>)))
+              (if (eq? closing -1)
+                (begin
+                  (error "html:parse" "Error at position" pos "Unclosed bracket")
+                  :err-unclosed-bracket)
+                (let* ((tag (substring str 1 closing))
+                       (len (+ (length tag) 2)))
+                  (if (string:ends-with tag "/")
+                    (internal
+                      (substring str len (length str))
+                      (+ pos len)
+                      (parse-self-closing (substring tag 0 (sub1 (length tag)))))
+                    '()))))
+            (begin
+              (error "html:parse" "Error at position: " pos "Expected '<', got " strip)
+              :err-unexpected-char)))))
+    (internal str 0 [])))
+
   (build (lambda (m)
     (define (_build l)
       (define (destructure hash)
@@ -37,6 +94,4 @@
           (list "html"
             (list
               (list "head" (if (truthy? (hash "head")) (hash "head") ""))
-              (list "body" (if (truthy? (hash "body")) (hash "body") ""))))))))
-
-  (parse (lambda (str) :no)))
+              (list "body" (if (truthy? (hash "body")) (hash "body") "")))))))))
