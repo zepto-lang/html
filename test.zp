@@ -43,13 +43,45 @@
   "test that empty html yields empty list")
 
 (minitest:assert-equal
-  (list "br" #{})
+  [("br" #{})]
   (html:parse "<br/>")
   "test that self-closing tags are parsed correctly")
 
 (minitest:assert-equal
-  ["br" #{"style" "padding-bottom: 1em"}]
+  [("br" #{"style" "padding-bottom: 1em"})]
   (html:parse "<br style=\"padding-bottom: 1em\"/>")
   "test that the attributes of self-closing tags are parsed correctly")
+
+(minitest:assert-equal
+  [("br" #{}) ("br" #{})]
+  (html:parse "<br/><br/>")
+  "test that multiple self-closing tags are parsed correctly")
+
+(minitest:assert-equal
+  [("p" #{} "yes, that is me")]
+  (html:parse "<p>yes, that is me</p>")
+  "test that regular tags are parsed correctly")
+
+(minitest:assert-equal
+  [("p" #{"style" "font-family: monospace;"} "yes, that is me")]
+  (html:parse "<p style=\"font-family: monospace;\">yes, that is me</p>")
+  "test that the attributes of regular tags are parsed correctly")
+
+(minitest:assert-equal
+  [("html" #{}
+    (("body"
+      #{"style" "color: purple"
+        "onclick" "foo()"}
+      (("h1" #{} "title")
+       ("span" #{} "i am some text!")))))]
+  (html:parse
+    "<html><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>")
+  "parse html (complex example)")
+
+(define fixture "<html><head><meta attr=\"noop\"></meta></head><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>")
+(minitest:assert-equal
+  fixture
+  (html:build (html:parse fixture))
+  "test that parsing & building html results in equivalent HTML")
 
 ((import "minitest:results"))

@@ -5,6 +5,19 @@
     (list "with-skeleton" with-skeleton)
     (list "parse" parse))
 
+  (find-substr (lambda (str sub)
+    (define (internal s p i)
+      (if (< (length s) (length p))
+       -1
+        (let ((m (substring s 0 (length p))))
+          (if (string=? m p)
+            i
+            (let ((x (add1 (string:find (string:tail s) (string:head p)))))
+              (if (< x 1)
+                -1
+                (internal (substring s x (length s)) p (+ i x))))))))
+    (internal str sub 0)))
+
   (doctype (lambda x
     (if (null? x)
       "<!DOCTYPE html>"
@@ -44,6 +57,20 @@
                       (list (car split) (substring val 1 (sub1 (length val))))))
                   (cdr attrs)))))
       (list name pairs)))
+    (define (parse-regular tag str)
+      (let* ((name (car (split-attrs tag [])))
+             (close (++ "</" name ">"))
+             (pos (find-substr str close)))
+        (if (= -1 pos)
+          (begin
+            (error "html:parse" "Error" "Unclosed tag: " tag)
+            :err-no-closing)
+          (let* ((sub (substring str (+ (length tag) 2) pos))
+                 (sub-pos (string:find sub #\<)))
+            (list (+ pos (length close))
+                  (++ (parse-self-closing tag)
+                  (if (= sub-pos -1) sub (list (internal (substring sub sub-pos (length sub))
+                                                         (+ pos sub-pos) [])))))))))
     (define (internal str pos acc)
       (if (string:empty? str)
         acc
@@ -60,8 +87,14 @@
                     (internal
                       (substring str len (length str))
                       (+ pos len)
-                      (parse-self-closing (substring tag 0 (sub1 (length tag)))))
-                    '()))))
+                      (+= acc (parse-self-closing (substring tag 0 (sub1 (length tag))))))
+                    (let ((state (parse-regular tag str)))
+                      (if (atom? state)
+                        state
+                      (let ((new-p (car state)))
+                        (internal (substring str new-p (length str))
+                                  (+ pos new-p)
+                                  (+= acc (cadr state))))))))))
             (begin
               (error "html:parse" "Error at position: " pos "Expected '<', got " strip)
               :err-unexpected-char)))))
@@ -73,8 +106,9 @@
         (hash:keys-reduce (lambda (acc x) (++ acc " " x "=\"" (hash x) "\"")) "" hash))
       (let* ((tag (car l))
              (len (length l))
-             (attrs (if (> len 1) (if (hash-map? (cadr l)) (destructure (cadr l)) "") ""))
-             (todo (if (truthy? attrs) (if (> len 2) (caddr l) '()) (if (> len 1) (cadr l) ""))))
+             (sattrs (if (> len 1) (if (hash-map? (cadr l)) #t #f) #f))
+             (attrs (if sattrs (destructure (cadr l)) ""))
+             (todo (if sattrs (if (> len 2) (caddr l) '()) (if (> len 1) (cadr l) ""))))
         (++ "<" tag attrs ">" (build todo) "</" tag ">")))
     (cond
       ((string? m) m)
