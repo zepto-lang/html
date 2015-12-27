@@ -39,7 +39,7 @@ The list format that is emitted by the parser (and consumed by the builder, resp
 looks as follows:
 ````clojure
 ((<tag-name> <attributes> <child tags/contents>)
- (<tags-name ...)
+ (<tag-name> ...)
  ...)
 ```
 
