@@ -14,7 +14,7 @@ Those endpoints can be used like so:
 ; html:parse will parse HTML into a nested list.
 ; Its capabilities are somewhat limited (see caveats)
 ; More about the format in format
-(html:parse "<html><body><p class="section">Hi</p></body></html>") ; => ((html #{} ((body #{} ((p #{class section} Hi))))))
+(html:parse "<html><body><p class='section'>Hi</p></body></html>") ; => ((html #{} ((body #{} ((p #{class section} Hi))))))
 
 ; html:build will build HTML from such nested lists
 ; as such, it  is inverse to parse
