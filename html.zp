@@ -1,5 +1,5 @@
 (module "html"
-  (exports
+  (export
     (list "doctype" doctype)
     (list "build" build)
     (list "with-skeleton" with-skeleton)
