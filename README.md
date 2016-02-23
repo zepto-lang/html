@@ -11,20 +11,28 @@ The module exports four endpoints, `html:doctype`,
 Those endpoints can be used like so:
 
 ```clojure
-; html:parse will parse HTML into a nested list.
+; html:parse will parse HTML into a hash-map.
 ; Its capabilities are somewhat limited (see caveats)
 ; More about the format in format
-(html:parse "<html><body><p class='section'>Hi</p></body></html>") ; => ((html #{} ((body #{} ((p #{class section} Hi))))))
+(html:parse "<html><body><p class='section'>Hi</p></body></html>")
+; => #{:tags (#{:name "html"
+;               :tags (#{:name body
+;                        :tags (#{:name "p"
+;                                 :attributes #{"class" "section"}
+;                                 :text "Hi"})})})}
 
-; html:build will build HTML from such nested lists
+; html:build will build HTML from such hash-maps.
 ; as such, it  is inverse to parse
-(html:build [("html" #{"class" "not-full-screen"} ("body" "empty"))]) ; => <html class="not-full-screen"><body>empty</body></html>
+(html:build #{:tags (#{:name "html"
+                       :attribues #{"class" "not-full-screen"}
+                       :tags (#{:name "body" :text "empty"})})})
+; => <html class="not-full-screen"><body>empty</body></html>
 
 ; html:with-skeleton abstracts a bit over the admittedly
 ; tedious build procedure
 (html:build (html:with-skeleton
-  #{"head" ("script" #{"type" "text/javascript"} "alert(\"yay\");")
-    "body" ("p" "notifications are annoying")}))
+  #{:head #{:tags (#{:name "script" :attribute #{"type" "text/javascript"} :text "alert(\"yay\");"})}
+    :body #{:tags (#{:name "p" :text "notifications are annoying"})}}))
 ; => <html><head><script type="text/javascript">alert("yay");</script></head><body><p>notifications are annoying</p></body></html>
 
 ; html:doctype is the single helper function that is exposed
@@ -35,28 +43,28 @@ Those endpoints can be used like so:
 
 ## Format
 
-The list format that is emitted by the parser (and consumed by the builder, respectively)
+The hash-map format that is emitted by the parser (and consumed by the builder, respectively)
 looks as follows:
 ````clojure
-((<tag-name> <attributes> <child tags/contents>)
- (<tag-name> ...)
- ...)
+top-level = #{:tags [tag] :text string}
+tag = #{:name string :attributes hash-map :text string :tags [tag]}
 ```
 
-When building, the attributes and child tags can be omitted if they are empty and single
-nodes do not need to be nested. The parser will always emit nested and complete data,
-because it is both easier for the library and its users to handle homogenous data.
+When building, the attributes and child tags can be omitted if they are empty and single.
+The parser will always emit complete data, because it is both easier for the
+library and its users to handle homogenous data.
 
 ## Caveats
 
 The library is far from finished. As such, most even slightly fancy features of HTML
-are not present.
+are not present in the builder.
 
 ### Parsing
 
-Right now, the parsing only supports a subset of HTML that will not suffice to
-parse most HTML sites. No special nodes are understood, i.e. only regular or self-closing
-tags are allowed. Comment, DOCTYPE, or implicitly closed tags will all result in failure.
+Right now, the parsing only supports a subset of HTML that will suffice to
+parse most HTML sites. No special nodes are understood, i.e. only regular or self-closing,
+implicitly closed and comment tags are allowed. Special node (such as DOCTYPE) have only
+rudimentary support and are treated as simple key-value nodes.
 
 ###Building
 

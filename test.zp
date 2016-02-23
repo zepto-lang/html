@@ -10,70 +10,81 @@
 (minitest:assert-equal
   "<html><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>"
   (html:build
-    (list "html"
-      (list "body"
-        #{"style" "color: purple"
-          "onclick" "foo()"}
-        (list
-          (list "h1" "title")
-          (list "span" "i am some text!")))))
+    #{:tags (#{:name "html"
+               :tags (#{:name "body"
+                        :attributes #{"style" "color: purple" "onclick" "foo()"}
+                        :tags (#{:name "h1" :text "title"}
+                      #{:name "span" :text "i am some text!"})})})})
   "build html")
 
 (minitest:assert-equal
   "<html><head><script type=\"text/javascript\">alert(\"yay\");</script></head><body><p>notifications are annoying</p></body></html>"
   (html:build
     (html:with-skeleton
-      (make-hash "head" (list "script" #{"type" "text/javascript"} "alert(\"yay\");")
-                 "body" (list "p" "notifications are annoying"))))
+      #{:head #{:tags (#{:name "script"
+                         :attributes #{"type" "text/javascript"}
+                         :text "alert(\"yay\");"})}
+        :body #{:tags (#{:name "p"
+                         :text "notifications are annoying"})}}))
   "build html with skeleton")
 
 (minitest:assert-equal
-  :err-unexpected-char
-  (html:parse "invalid")
-  "test that invalid html is not parsed (dangling text)")
+  #{:tags () :text "just text"}
+  (html:parse "just text")
+  "test that dangling text is preserved")
 
 (minitest:assert-equal
-  :err-unclosed-bracket
+  :err-unclosed-tag
   (html:parse "<invalid")
   "test that invalid html is not parsed (mismatched brackets)")
 
 (minitest:assert-equal
-  []
+  #{:tags () :text ""}
   (html:parse "")
-  "test that empty html yields empty list")
+  "test that empty html yields empty accumulator")
 
 (minitest:assert-equal
-  [("br" #{})]
+  #{:tags (#{:name "br" :attributes #{} :text "" :tags ()}) :text "{0}"}
   (html:parse "<br/>")
   "test that self-closing tags are parsed correctly")
 
 (minitest:assert-equal
-  [("br" #{"style" "padding-bottom: 1em"})]
+  #{:tags (#{:name "br" :attributes #{"style" "padding-bottom: 1em"} :text "" :tags ()}) :text "{0}"}
   (html:parse "<br style=\"padding-bottom: 1em\"/>")
   "test that the attributes of self-closing tags are parsed correctly")
 
 (minitest:assert-equal
-  [("br" #{}) ("br" #{})]
+  #{:tags (#{:name "br" :attributes #{} :text "" :tags ()}
+           #{:name "br" :attributes #{} :text "" :tags ()})
+    :text "{0}{1}"}
   (html:parse "<br/><br/>")
   "test that multiple self-closing tags are parsed correctly")
 
 (minitest:assert-equal
-  [("p" #{} "yes, that is me")]
+  #{:tags (#{:name "p" :text "yes, that is me" :attributes #{} :tags ()}) :text "{0}"}
   (html:parse "<p>yes, that is me</p>")
   "test that regular tags are parsed correctly")
 
 (minitest:assert-equal
-  [("p" #{"style" "font-family: monospace;"} "yes, that is me")]
+  #{:tags (#{:name "p"
+             :attributes #{"style" "font-family: monospace;"}
+             :text "yes, that is me"
+             :tags ()})
+    :text "{0}"}
   (html:parse "<p style=\"font-family: monospace;\">yes, that is me</p>")
   "test that the attributes of regular tags are parsed correctly")
 
 (minitest:assert-equal
-  [("html" #{}
-    (("body"
-      #{"style" "color: purple"
-        "onclick" "foo()"}
-      (("h1" #{} "title")
-       ("span" #{} "i am some text!")))))]
+  #{:tags (#{:name "html"
+             :attributes #{}
+             :text "{0}"
+             :tags (#{:name "body"
+                      :attributes #{"style" "color: purple"
+                                    "onclick" "foo()"}
+                      :text "{0}{1}"
+                      :tags (#{:name "h1" :attributes #{} :text "title" :tags ()}
+                             #{:name "span" :attributes #{} :text "i am some text!" :tags ()})})})
+    :text "{0}"}
   (html:parse
     "<html><body onclick=\"foo()\" style=\"color: purple\"><h1>title</h1><span>i am some text!</span></body></html>")
   "parse html (complex example)")

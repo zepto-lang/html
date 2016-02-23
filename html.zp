@@ -5,18 +5,10 @@
     (list "with-skeleton" with-skeleton)
     (list "parse" parse))
 
-  (find-substr (lambda (str sub)
-    (define (internal s p i)
-      (if (< (length s) (length p))
-       -1
-        (let ((m (substring s 0 (length p))))
-          (if (string=? m p)
-            i
-            (let ((x (add1 (string:find (string:tail s) (string:head p)))))
-              (if (< x 1)
-                -1
-                (internal (substring s x (length s)) p (+ i x))))))))
-    (internal str sub 0)))
+  (implicit ["meta" "img" "input" "br" "hr" "frame" "area" "base" "basefont"
+             "col" "isindex" "link" "param" "html" "head" "body" "p" "dt"
+             "dd" "li" "option" "thead" "th" "tbody" "tr" "td" "tfoot" "colgroup"])
+  (empty-acc #{:tags () :text ""})
 
   (doctype (lambda x
     (if (null? x)
@@ -24,6 +16,12 @@
       (++ "<!DOCTYPE " (car x) ">"))))
 
   (parse (lambda (str)
+    (define (add-to-tags hash tag)
+      (hash:update hash :tags (lambda (tags) (++ tags tag))))
+    (define (add-to-text hash text)
+      (hash:update hash :text (lambda (t) (++ t text))))
+    (define (make-tag tag content subtags attributes)
+      (make-hash :name tag :text content :tags subtags :attributes attributes))
     (define (split-attrs tag-contents parsed)
       (if (string:empty? tag-contents)
         parsed
@@ -47,85 +45,120 @@
                            (++ parsed (substring tag-contents 0 whitespace)))))))))
     (define (parse-self-closing tag)
       (let* ((attrs (split-attrs tag []))
-             (name (car attrs))
+             (tname (car attrs))
              (pairs
               (make-hash
                 (map
                   (lambda (x) 
-                    (let* ((split (string:split x #\=))
+                    (let* ((split (string:split x "=\""))
                            (val (cadr split)))
-                      (list (car split) (substring val 1 (sub1 (length val))))))
+                      (list (car split) (substring val 0 (sub1 (length val))))))
                   (cdr attrs)))))
-      (list name pairs)))
-    (define (parse-regular tag str)
-      (let* ((name (car (split-attrs tag [])))
-             (close (++ "</" name ">"))
-             (pos (find-substr str close)))
-        (if (= -1 pos)
-          (begin
-            (error "html:parse" "Error" "Unclosed tag: " tag)
-            :err-no-closing)
-          (let* ((sub (substring str (+ (length tag) 2) pos))
-                 (sub-pos (string:find sub #\<)))
-            (list (+ pos (length close))
-                  (++ (parse-self-closing tag)
-                  (if (= sub-pos -1) sub (list (internal (substring sub sub-pos (length sub))
-                                                         (+ pos sub-pos) [])))))))))
+      (make-tag tname "" [] pairs)))
     (define (internal str pos acc)
       (if (string:empty? str)
         acc
-        (let ((strip (string:head str)))
-          (if (eq? strip #\<)
-            (let ((closing (string:find str #\>)))
-              (if (eq? closing -1)
+        (cond
+          ((string:starts-with str "<!--")
+            (let ((index (string:find str "-->")))
+              (if (eq? index -1)
+                acc
+                (internal (substring str index (length str)) (+ pos index) acc))))
+          ((string:starts-with str "<!")
+            (if (eq? acc empty-acc)
+              (let ((index (string:find str ">")))
+                (if (eq? index -1)
+                  (begin
+                    (error "html:parse" "Unclosed meta tag at pos" pos)
+                    :err-unclosed-meta)
+                  (internal (substring str index (length str)) (+ pos index)
+                            (add-to-tags acc
+                                    (let ((split (string:split (substring str 2 index) #\space)))
+                                      (if (= (length split) 1)
+                                        (make-tag (car split) "" [] #{})
+                                        (make-tag (car split) (cadr split) [] #{})))))))))
+          ((string:starts-with str "<")
+            (let ((index (string:find str ">")))
+              (if (eq? index -1)
                 (begin
-                  (error "html:parse" "Error at position" pos "Unclosed bracket")
-                  :err-unclosed-bracket)
-                (let* ((tag (substring str 1 closing))
-                       (len (+ (length tag) 2)))
-                  (if (string:ends-with tag "/")
-                    (internal
-                      (substring str len (length str))
-                      (+ pos len)
-                      (+= acc (parse-self-closing (substring tag 0 (sub1 (length tag))))))
-                    (let ((state (parse-regular tag str)))
-                      (if (atom? state)
-                        state
-                      (let ((new-p (car state)))
-                        (internal (substring str new-p (length str))
-                                  (+ pos new-p)
-                                  (+= acc (cadr state))))))))))
-            (begin
-              (error "html:parse" "Error at position: " pos "Expected '<', got " strip)
-              :err-unexpected-char)))))
-    (internal str 0 [])))
+                  (error "html:parse" "Unclosed tag at pos" pos)
+                  :err-unclosed-tag)
+                (if (eq? (string:ref str (sub1 index)) #\/)
+                  (internal (substring str (add1 index) (length str)) (+ pos index)
+                            (add-to-tags (add-to-text acc (++ "{" (->string (length (acc :tags))) "}"))
+                                         (parse-self-closing (substring str 1 (sub1 index)))))
+                   (let* ((tag (parse-self-closing (substring str 1 index)))
+                          (closing (++ "</" (tag :name) ">"))
+                          (rest (substring str (add1 index) (length str)))
+                          (cindex (string:find rest closing)))
+                    (if (eq? cindex -1)
+                      (if (in? implicit (string:lower-case (tag :name)))
+                        '()
+                        (begin
+                          (error "html:parse" "Tag at pos" pos "has no closing tag")
+                          :err-unclosed-tag))
+                      (internal (substring rest (+ cindex (length closing)) (length rest))
+                                (+ pos index cindex (length closing))
+                                (add-to-tags (add-to-text acc
+                                                          (++ "{" (->string (length (acc :tags))) "}"))
+                                             (internal (substring str (add1 index)
+                                                                  (+ (add1 index) cindex))
+                                                       (+ pos index 1)
+                                                       tag)))))))))
+          (else
+            (let ((index (string:find str "<")))
+              (if (eq? index -1)
+                (add-to-text acc str)
+                (internal (substring str index (length str)) (+ pos index)
+                          (add-to-text acc (substring str 0 index)))))))))
+    (internal (string:remove-newlines str) 0 empty-acc)))
 
   (build (lambda (m)
-    (define (_build l)
+    (define (_build h)
       (define (destructure hash)
-        (hash:keys-reduce (lambda (acc x) (++ acc " " x "=\"" (hash x) "\"")) "" hash))
-      (let* ((tag (car l))
-             (len (length l))
-             (sattrs (if (> len 1) (if (hash-map? (cadr l)) #t #f) #f))
-             (attrs (if sattrs (destructure (cadr l)) ""))
-             (todo (if sattrs (if (> len 2) (caddr l) '()) (if (> len 1) (cadr l) ""))))
-        (++ "<" tag attrs ">" (build todo) "</" tag ">")))
+        (if (nil? hash)
+          ""
+          (hash:keys-reduce (lambda (acc x) (++ acc " " x "=\"" (hash x) "\"")) "" hash)))
+      (define (fill template tags)
+        (cond
+          ((string:empty? template)
+            (reduce ++ "" tags))
+          ((null? tags)
+            template)
+          (else
+            (let loop ((template template)
+                       (el (car tags))
+                       (tags (cdr tags))
+                       (index 0))
+              (let* ((i (string:find template (++ "{" (->string index) "}")))
+                     (template (++ (substring template 0 i)
+                                   el
+                                   (substring template (+ i 3) (length template)))))
+                (if (null? tags)
+                  template
+                  (loop template (car tags) (cdr tags) (add1 index))))))))
+      (let* ((tag (get-from h :name ""))
+             (attrs (destructure (h :attributes)))
+             (tags (get-from h :tags [])))
+        (++ "<" tag attrs ">"
+            (fill (get-from h :text "") (map _build tags))
+            "</" tag ">")))
     (cond
       ((string? m) m)
       ((number? m) (number->string m))
-      ((list? m)
-        (cond
-          ((null? m) "")
-          ((string? (car m)) (_build m))
-          ((list? (car m)) (reduce (lambda (acc x) (++ acc (build x))) "" m))
-          (else :no)))
+      ((hash-map? m) (reduce (lambda (acc x) (++ (_build x))) "" (m :tags)))
       (else :no))))
 
     (with-skeleton (lambda contents
       (if (null? contents)
-        (list "html" ((list "head") (list "body")))
-        (let ((hash (car contents)))
-          (list "html"
+        #{:tags (#{:name "html"
+                   :tags (#{:name "head"}
+                          #{:name "body"})})}
+        (let* ((hash (car contents))
+               (tags (++ []
+                         (if (truthy? (hash :head)) (hash:set (hash :head) :name "head") [])
+                         (if (truthy? (hash :body)) (hash:set (hash :body) :name "body") []))))
+          (make-hash :tags
             (list
-              (list "head" (if (truthy? (hash "head")) (hash "head") ""))
-              (list "body" (if (truthy? (hash "body")) (hash "body") "")))))))))
+              (make-hash :name "html"
+                         :tags tags))))))))
