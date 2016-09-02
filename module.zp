@@ -1,12 +1,12 @@
-#{:name "html" 
-  :version "1.0.0" 
-  :license "GPLv2" 
+#{:name "html"
+  :version "1.0.1"
+  :license "GPLv2"
   :tests []
   :type :library
-  :author #{:name "Veit Heller" 
-            :email "veit@veitheller.de" 
+  :author #{:name "Veit Heller"
+            :email "veit@veitheller.de"
             :github "@hellerve"}
-  :location #{:github "zepto-lang/html" 
+  :location #{:github "zepto-lang/html"
               :zpr "html"}
   :zepto #{:version :any
            :ez #f

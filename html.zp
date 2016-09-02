@@ -11,17 +11,42 @@
   (empty-acc #{:tags () :text ""})
 
   (doctype (lambda x
+    "generates a doctype HTML tag.
+
+     params:
+      - x: an optional argument to change the doctype type (defaults to html)
+     complexity: O(1)
+     returns: a string representing the doctype tag"
     (if (null? x)
       "<!DOCTYPE html>"
       (++ "<!DOCTYPE " (car x) ">"))))
 
   (parse (lambda (str)
+    "parses a HTML formatted string into a nested list of tags.
+
+    Example:
+    <zepto>
+      (html:parse \"&lt;html&gt;&lt;body&gt;&lt;p class='section'&gt;Hi&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;\")
+      ; => #{:tags (#{:name \"html\"
+      ;               :tags (#{:name \"body\"
+      ;                        :tags (#{:name \"p\"
+      ;                                 :attributes #{\"class\" \"section\"}
+      ;                                 :text \"Hi\"})})})}
+    </zepto>
+
+     params:
+      str: the string to parse
+     complexity: O(n)
+     returns: the list"
     (define (add-to-tags hash tag)
       (hash:update hash :tags (lambda (tags) (++ tags tag))))
+
     (define (add-to-text hash text)
       (hash:update hash :text (lambda (t) (++ t text))))
+
     (define (make-tag tag content subtags attributes)
       (make-hash :name tag :text content :tags subtags :attributes attributes))
+
     (define (split-attrs tag-contents parsed)
       (if (string:empty? tag-contents)
         parsed
@@ -43,6 +68,7 @@
                            parsed)
               (split-attrs (substring tag-contents (add1 whitespace) (length tag-contents))
                            (++ parsed (substring tag-contents 0 whitespace)))))))))
+
     (define (parse-self-closing tag)
       (let* ((attrs (split-attrs tag []))
              (tname (car attrs))
@@ -55,6 +81,7 @@
                       (list (car split) (substring val 0 (sub1 (length val))))))
                   (cdr attrs)))))
       (make-tag tname "" [] pairs)))
+
     (define (internal str pos acc)
       (if (string:empty? str)
         acc
@@ -114,6 +141,21 @@
     (internal (string:remove-newlines str) 0 empty-acc)))
 
   (build (lambda (m)
+    "build will build HTML (strings) from hashmaps.
+     As such, it  is inverse to parse.
+
+     Example:
+     <zepto>
+      (html:build #{:tags (#{:name \"html\"
+                             :attribues #{\"class\" \"not-full-screen\"}
+                             :tags (#{:name \"body\" :text \"empty\"})})})
+      ; => &lt;html class=\"not-full-screen\"&gt;&lt;body&gt;empty&lt;/body&gt;&lt;/html&gt;
+     </zepto>
+
+     params:
+      - m: the map from which to build a HTML string
+     complexity: O(n)
+     returns: a HTML string"
     (define (_build h)
       (define (destructure hash)
         (if (nil? hash)
@@ -150,6 +192,24 @@
       (else :no))))
 
     (with-skeleton (lambda contents
+      "with-skeleton abstracts a bit over the admittedly tedious build
+       procedure by providing a HTML skeleton.
+
+       Example:
+       <zepto>
+       (html:build (html:with-skeleton
+        #{:head #{:tags (#{:name \"script\"
+                           :attribute #{\"type\" \"text/javascript\"}
+                           :text \"alert(\\\"yay\\\");\"})}
+          :body #{:tags (#{:name \"p\"
+                           :text \"notifications are annoying\"})}}))
+       ; => &lt;html&gt;&lt;head&gt;&lt;script type=\"text/javascript\"&gt;alert(\"yay\");&lt;/script&gt;&lt;/head&gt;&lt;body&gt;&lt;p&gt;notifications are annoying&lt;/p&gt;&lt;/body&gt;&lt/html&gt;
+       </zepto>
+
+       params:
+        - contents: optional argument that describes the skeleton body (if none is provided, an empty html page will be generated)
+       complexity: O(n)
+       returns: a hashmap you can pipe into <fun>html:build</fun>"
       (if (null? contents)
         #{:tags (#{:name "html"
                    :tags (#{:name "head"}
